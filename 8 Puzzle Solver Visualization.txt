@@ -1,0 +1,310 @@
+import copy,time
+import heapq
+from collections import deque
+import pygame as pg
+from pygame.locals import *
+import sys
+import heapq as pq
+
+pg.font.init()
+
+font = pg.font.Font(None, 90)
+font2 = pg.font.Font(None, 50)
+font3 = pg.font.Font(None, 25)
+
+width = 800
+height = 750
+sq = 150
+
+
+begin = time.time()
+board = [
+    [5,3,4],
+    [8,2,7],
+    [6,1,0]
+]
+
+
+
+n = len(board)
+last = []
+
+####################### BU KISIM GEEKSFORGEEKSTEN ALINMIŞTIR #############################
+def getInvCount(arr):
+    inv_count = 0
+    empty_value = -1
+    for i in range(0, 9):
+        for j in range(i + 1, 9):
+            if arr[j] != empty_value and arr[i] != empty_value and arr[i] > arr[j]:
+                inv_count += 1
+    return inv_count
+
+def startButton(screen,button_rect):
+    button_text = font.render("Solve", True, (255,255,255))
+    text_rect = button_text.get_rect(center=button_rect.center)
+    pg.draw.rect(screen, (60, 20, 150), button_rect)
+    screen.blit(button_text, text_rect)
+def isSolvable(puzzle):
+    # Count inversions in given 8 puzzle
+    inv_count = getInvCount([j for sub in puzzle for j in sub])
+
+    # return true if inversion count is even.
+    return (inv_count % 2 == 0)
+####################### BU KISIM GEEKSFORGEEKSTEN ALINMIŞTIR #############################
+
+
+def makeDecisionForDirection(a1, a2):
+    if a2[0] - a1[0] == -1:        return 'UP'
+    if a2[0] - a1[0] == 1:        return 'DOWN'
+    if a2[1] - a1[1] == 1:        return 'RIGHT'
+    if a2[1] - a1[1] == -1:        return 'LEFT'
+
+
+def makeBoard(arr):
+    n = len(arr)
+    arrPath = []
+    tmp = []
+    for i in range(n):
+        tmp.append(int(arr[i]))
+        if (i + 1) % (int(n ** .5)) == 0 and i > 0:
+            arrPath.append(tmp)
+            tmp = []
+    return arrPath
+
+
+def findF(board, correct):
+    f = 0
+    for i in range(len(board)):
+        for j in range(len(board)):
+            if board[i][j] != correct[i][j] and board[i][j]:
+                f += 1
+    return f
+
+
+def parent(board):
+    path = ""
+
+    for i in range(n):
+        for j in range(n):
+            if i == n - 1 and j == n - 1:
+                path += str(board[i][j])
+            else:
+                path += str(board[i][j]) + '-'
+    return path
+
+
+def neighbors(n, i, j):
+    nghs = []
+    if j + 1 < n:
+        nghs.append([i, j + 1])
+    if i - 1 >= 0:
+        nghs.append([i - 1, j])
+    if j - 1 >= 0:
+        nghs.append([i, j - 1])
+    if i + 1 < n:
+        nghs.append([i + 1, j])
+    return nghs
+
+
+def makeCorrectBoard(n):
+    brd = []
+    num = 0
+    for i in range(n):
+        temp = []
+        for j in range(n):
+            temp.append(num)
+            num += 1
+        brd.append(temp)
+    brd[-1][-1] = n * n - 1
+    return brd
+
+
+
+def makeCorrectBoard2(n):
+    brd = []
+    num = 1
+    for i in range(n):
+        temp = []
+        for j in range(n):
+            temp.append(num)
+            num += 1
+        brd.append(temp)
+    brd[-1][-1] = 0
+    return brd
+
+
+correctBoard = makeCorrectBoard(len(board))
+correctBoard2 = makeCorrectBoard2(len(board))
+
+def findRC(board):
+    for i in range(len(board)):
+        for j in range(len(board[0])):
+            if board[i][j] == 0:
+                return [i, j]
+
+def isOver(board):
+    state2 = 1
+
+    for i in range(len(board)):
+        for j in range(len(board)):
+            if board[i][j] == correctBoard2[i][j]:
+                state2 += 1
+
+    if state2 >= len(board) * len(board):
+        return True
+
+
+def bfs(board):
+    depth = [[0, parent(board), board]]
+    pq.heapify(depth)
+    visitedPop = set()
+    depthParent = {parent(board): 0}
+    popParent = {parent(board) : None}
+    visitedPop.add(parent(board))
+
+    zeros = []
+
+    mini = 10 ** 10
+    a = 0
+    while depth:
+        a += 1
+        pop = pq.heappop(depth)
+
+
+        if isOver(pop[2]):
+            tmp = pop[1]
+            k = 0
+
+            while tmp:
+                brd = makeBoard(tmp.split('-'))
+                tmp = popParent[tmp]
+                k += 1
+                zeros.append(findRC(brd))
+            break
+
+        tempPop = copy.deepcopy(pop[2])
+        rcPop = findRC(tempPop)
+        neighsPop = neighbors(n, rcPop[0], rcPop[1])
+        pathPop = parent(tempPop)
+
+        for nodePop in neighsPop:
+            r, c = nodePop[0], nodePop[1]
+            tempPop[rcPop[0]][rcPop[1]], tempPop[r][c] = tempPop[r][c], tempPop[rcPop[0]][rcPop[1]]
+            parentPop = parent(tempPop)
+
+            if parentPop not in visitedPop:
+                f = findF(tempPop, correctBoard)
+                depthParent[parentPop] = depthParent[pathPop] + 1
+                h = f + depthParent[parentPop]
+                visitedPop.add(parentPop)
+                popParent[parentPop] = pathPop
+                pq.heappush(depth, [h, parentPop, copy.deepcopy(tempPop)])
+
+            tempPop[rcPop[0]][rcPop[1]], tempPop[r][c] = tempPop[r][c], tempPop[rcPop[0]][rcPop[1]]
+
+    length = len(zeros)
+    zeros = zeros[::-1]
+    dirs = []
+    for i in range(length - 1):
+        x, y = zeros[i], zeros[i + 1]
+        direction = makeDecisionForDirection(x, y)
+        dirs.append(direction)
+    return zeros, dirs
+
+
+def drawSquares(screen,square,x_pad,y_pad):
+    line_color = (0,0,0)
+    for i in range(4):
+        pg.draw.line(screen, line_color, (0+x_pad,i * square + y_pad), (square * 3+ x_pad, i* square + y_pad), 1)
+
+    for i in range(4):
+        pg.draw.line(screen, line_color, (i * square + x_pad,0 + y_pad), (i * square + x_pad,3 * square+ y_pad ), 1)
+
+def placeNumbers(screen,matrix,square,xpad,ypad):
+    for i in range(3):
+        for j in range(3):
+            if matrix[j][i]:
+                txt = str(matrix[j][i])
+            else:
+                txt = ''
+            text = font.render(txt, True, (0, 0, 0))
+            screen.blit(text, (square * i + xpad + square // 2.5, square * j + ypad + square // 4))
+
+def painZeroCell(screen,i,j,cell_size,xpad,ypad):
+    x = j * cell_size
+    y = i * cell_size
+    pg.draw.rect(screen, (0,255,0), pg.Rect(x+xpad, y+ypad, cell_size, cell_size))
+
+
+def printPathDirs(screen,path,xpad,ypad):
+    i = 0
+    for p in path:
+        text = font3.render( str(i+1) + '. '+ p, True, (0, 0, 0))
+        if i > 15:
+            screen.blit(text, (620, ypad + (i - 16)  * 30))
+        else:
+            screen.blit(text, (520, ypad + i * 30))
+        i += 1
+
+
+def main():
+    screen = pg.display.set_mode((width, height ))
+    clock = pg.time.Clock()
+    temp = copy.deepcopy(board)
+    isFound = False
+    isOver = False
+    zeros = []
+    i = 0
+    x,y = 0,0
+    solvable = isSolvable(board)
+    dirs = []
+    button_rect_start = pg.Rect(350,100, 180, 60)
+    start = False
+    while True:
+
+        screen.fill((255,255,255))
+        for events in pg.event.get():
+            if events.type == QUIT:
+                sys.exit(0)
+            if events.type == pg.MOUSEBUTTONDOWN:
+                mouse_pos = pg.mouse.get_pos()  # Mouse konumunu al
+                if button_rect_start.collidepoint(mouse_pos):
+                    start = not start
+
+        drawSquares(screen,sq,50,250)
+        placeNumbers(screen,board,sq,50,250)
+        clock.tick(2)
+
+        if not isFound and start:
+            text = font.render('Solving', True, (0, 0, 0))
+            screen.blit(text, (50, 100))
+
+        if not solvable:
+            path = font2.render('No Valid Path', True, (0, 0, 0))
+            screen.blit(path, (550, 100))
+
+
+        if isFound:
+            text = font.render('Solved', True, (0,255,0))
+            if solvable:
+                path = font.render('Path', True, (0,0,0))
+            screen.blit(text, (50, 100))
+            screen.blit(path, (600, 100))
+            painZeroCell(screen,x,y,sq,50,250)
+        if dirs:
+            printPathDirs(screen,dirs,0,250)
+        startButton(screen,button_rect_start)
+
+        pg.display.flip()
+        if not isFound and start:
+            zeros, dirs = bfs(board)
+            isFound = True
+        if isFound and isOver == False and i < len(zeros) - 1:
+            f,s = zeros[i] , zeros[i+1]
+            painZeroCell(screen,f[0],f[1],sq,300,250)
+            board[f[0]][f[1]] , board[s[0]][s[1]] =board[s[0]][s[1]], board[f[0]][f[1]]
+            x,y = s[0],s[1]
+            i += 1
+
+
+main()

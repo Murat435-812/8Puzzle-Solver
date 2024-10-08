@@ -1,0 +1,198 @@
+import copy, time
+import heapq
+from collections import deque
+import heapq as pq
+
+# Başlangıç zamanını al
+begin = time.time()
+
+# Başlangıçta verilen 3x3'lük bir oyun tahtası
+board = [
+    [8,6,3],
+    [1,2,4],
+    [5,7,0]
+]
+
+n = len(board)  # Tahtanın boyutu
+last = []  # Geçmiş durumları saklamak için bir liste
+
+# İki nokta arasındaki hareket yönünü belirleme fonksiyonu
+def makeDecisionForDirection(a1, a2):
+    if a2[0] - a1[0] == -1:        return 'UP'     # Yukarı
+    if a2[0] - a1[0] == 1:         return 'DOWN'   # Aşağı
+    if a2[1] - a1[1] == 1:         return 'RIGHT'  # Sağa
+    if a2[1] - a1[1] == -1:        return 'LEFT'   # Sola
+
+# Verilen bir dizi ile yeni bir oyun tahtası oluşturma fonksiyonu
+def makeBoard(arr):
+    n = len(arr)
+    arrPath = []  # Tahta için yol dizisi
+    tmp = []      # Geçici liste
+    for i in range(n):
+        tmp.append(int(arr[i]))  # Elemanları geçici listeye ekle
+        # Eğer geçici liste boyutu n'in kareköküne ulaştıysa, onu arrPath'e ekle
+        if (i + 1) % (int(n ** .5)) == 0 and i > 0:
+            arrPath.append(tmp)  # Tahta dizisine ekle
+            tmp = []  # Geçici listeyi sıfırla
+    return arrPath  # Tahtayı döndür
+
+# Belirli bir tahtanın F değerini bulma fonksiyonu
+def findF(board, correct):
+    f = 0
+    for i in range(len(board)):
+        for j in range(len(board)):
+            # Eğer eleman doğru tahtadaki ile eşleşmiyorsa ve sıfır değilse, f değerini artır
+            if board[i][j] != correct[i][j] and board[i][j]:
+                f += 1
+    return f  # F değerini döndür
+
+# Tahta durumunu dize formatına çeviren fonksiyon
+def parent(board):
+    path = ""
+
+    for i in range(n):
+        for j in range(n):
+            if i == n - 1 and j == n - 1:
+                path += str(board[i][j])  # Son elemanı ekle
+            else:
+                path += str(board[i][j]) + '-'  # Elemanları birleştir
+    return path  # Oluşan dizeyi döndür
+
+# Boş hücre (0) ile komşu hücreleri bulan fonksiyon
+def neighbors(n, i, j):
+    nghs = []  # Komşular listesi
+    # Sağ komşu varsa ekle
+    if j + 1 < n:
+        nghs.append([i, j + 1])
+    # Üst komşu varsa ekle
+    if i - 1 >= 0:
+        nghs.append([i - 1, j])
+    # Sol komşu varsa ekle
+    if j - 1 >= 0:
+        nghs.append([i, j - 1])
+    # Alt komşu varsa ekle
+    if i + 1 < n:
+        nghs.append([i + 1, j])
+    return nghs  # Komşuları döndür
+
+# Doğru tahtayı oluşturma fonksiyonu
+def makeCorrectBoard(n):
+    brd = []  # Doğru tahta listesi
+    num = 0  # Başlangıç sayısı
+    for i in range(n):
+        temp = []  # Geçici liste
+        for j in range(n):
+            temp.append(num)  # Sayıyı ekle
+            num += 1  # Sayıyı artır
+        brd.append(temp)  # Geçici listeyi doğru tahtaya ekle
+    brd[-1][-1] = n * n - 1  # Son elemanı ayarla
+    return brd  # Doğru tahtayı döndür
+
+# Diğer bir doğru tahta oluşturma fonksiyonu
+def makeCorrectBoard2(n):
+    brd = []
+    num = 1  # Başlangıç sayısı
+    for i in range(n):
+        temp = []
+        for j in range(n):
+            temp.append(num)  # Sayıyı ekle
+            num += 1  # Sayıyı artır
+        brd.append(temp)  # Geçici listeyi doğru tahtaya ekle
+    brd[-1][-1] = 0  # Son elemanı sıfır yap
+    return brd  # Doğru tahtayı döndür
+
+# Doğru tahtayı oluştur
+correctBoard = makeCorrectBoard(len(board))
+correctBoard2 = makeCorrectBoard2(len(board))
+
+print(correctBoard)  # Doğru tahtayı yazdır
+
+# Boş hücre (0) koordinatlarını bulma fonksiyonu
+def findRC(board):
+    for i in range(len(board)):
+        for j in range(len(board[0])):
+            if board[i][j] == 0:
+                return [i, j]  # Boş hücre koordinatlarını döndür
+
+# Tahtanın tamamlanıp tamamlanmadığını kontrol etme fonksiyonu
+def isOver(board):
+    state2 = 1  # Tamamlanma durumu
+
+    for i in range(len(board)):
+        for j in range(len(board)):
+            # Eğer eleman doğru tahtadaki ile eşleşiyorsa durumu artır
+            if board[i][j] == correctBoard2[i][j]:
+                state2 += 1
+
+    # Eğer tüm elemanlar doğruysa tamamlandı say
+    if state2 >= len(board) * len(board):
+        return True  # Tahta tamamlandıysa True döndür
+
+# Genişletme arama (BFS) algoritmasını uygulayan fonksiyon
+def bfs(board):
+    depth = [[0, parent(board), board]]  # Derinlik listesi
+    pq.heapify(depth)  # Derinlik listesini heap yapısına dönüştür
+    visitedPop = set()  # Ziyaret edilen durumlar kümesi
+    depthParent = {parent(board): 0}  # Durumun derinliği
+    popParent = {parent(board): None}  # Durumun ebeveyni
+    visitedPop.add(parent(board))  # Başlangıç durumunu ziyaret edilmiş olarak işaretle
+
+    zeros = []  # Boş hücrelerin koordinatları
+    mini = 10 ** 10  # Minimum değer
+    a = 0  # Döngü sayacı
+
+    # Derinlik listesi boş değilse döngüye gir
+    while depth:
+        a += 1  # Döngü sayacını artır
+        pop = pq.heappop(depth)  # En öncelikli durumu çıkar
+
+        # Eğer durum tamamlanmışsa
+        if isOver(pop[2]):
+            tmp = pop[1]  # Durumu al
+            k = 0  # Adım sayacı
+
+            # Tahta yolunu geri izleme
+            while tmp:
+                brd = makeBoard(tmp.split('-'))  # Yolu tahtaya çevir
+                tmp = popParent[tmp]  # Ebeveyni al
+                k += 1  # Adım sayacını artır
+                zeros.append(findRC(brd))  # Boş hücre koordinatını ekle
+            break  # Tamamlandıysa döngüden çık
+
+        tempPop = copy.deepcopy(pop[2])  # Durumu kopyala
+        rcPop = findRC(tempPop)  # Boş hücre koordinatlarını bul
+        neighsPop = neighbors(n, rcPop[0], rcPop[1])  # Komşuları bul
+        pathPop = parent(tempPop)  # Geçerli durumun yolunu al
+
+        # Her bir komşu için döngü
+        for nodePop in neighsPop:
+            r, c = nodePop[0], nodePop[1]  # Komşu koordinatları
+            # Boş hücreyi komşu ile değiştir
+            tempPop[rcPop[0]][rcPop[1]], tempPop[r][c] = tempPop[r][c], tempPop[rcPop[0]][rcPop[1]]
+            parentPop = parent(tempPop)  # Yeni durumun yolunu al
+
+            # Eğer durum daha önce ziyaret edilmemişse
+            if parentPop not in visitedPop:
+                f = findF(tempPop, correctBoard)  # F değerini bul
+                depthParent[parentPop] = depthParent[pathPop] + 1  # Yeni durumun derinliğini ayarla
+                h = f + depthParent[parentPop]  # Toplam h değerini hesapla
+                visitedPop.add(parentPop)  # Durumu ziyaret edilmiş olarak işaretle
+                popParent[parentPop] = pathPop  # Ebeveyni ayarla
+                pq.heappush(depth, [h, parentPop, copy.deepcopy(tempPop)])  # Yeni durumu kuyruğa ekle
+
+            # Değişiklikleri geri al
+            tempPop[rcPop[0]][rcPop[1]], tempPop[r][c] = tempPop[r][c], tempPop[rcPop[0]][rcPop[1]]
+
+    length = len(zeros)  # Boş hücre sayısını al
+    zeros = zeros[::-1]  # Boş hücreleri ters çevir
+    for i in range(length - 1):
+        x, y = zeros[i], zeros[i + 1]  # Ardışık boş hücreleri al
+        direction = makeDecisionForDirection(x, y)  # Yönü belirle
+        print(direction)  # Yönü yazdır
+
+# BFS algoritmasını başlat
+bfs(board)
+
+# Geçen süreyi hesapla ve yazdır
+end = time.time()
+print(end - begin)
